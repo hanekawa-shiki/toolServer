@@ -1,0 +1,19 @@
+name = "holiday-cn-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# KV 命名空间绑定
+[[kv_namespaces]]
+binding = "HOLIDAYS"
+id = "f58c791eeef1498796e76ce8fbb7febb"  # 首次部署前运行 `npm run kv:create` 获取
+
+# 定时任务：每周日 UTC 00:00（北京时间 08:00）执行同步
+[triggers]
+crons = ["0 0 * * 0"]
+
+# 环境变量
+[vars]
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master"
+
+# ALLOWED_ORIGINS 通过 Secret 设置，不暴露在代码中
+# 首次部署后运行: echo "https://your-app.example.com" | npx wrangler secret put ALLOWED_ORIGINS
