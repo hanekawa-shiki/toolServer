@@ -1,4 +1,3 @@
-/** holiday-cn 仓库的 JSON 数据结构 */
 export interface HolidayYear {
   $schema?: string;
   $id?: string;
@@ -9,13 +8,12 @@ export interface HolidayYear {
 
 export interface HolidayDay {
   name: string;
-  date: string; // "YYYY-MM-DD"
+  date: string;
   isOffDay: boolean;
 }
 
-/** Worker 环境变量 */
 export interface Env {
   HOLIDAYS: KVNamespace;
   GITHUB_RAW_BASE: string;
-  ALLOWED_ORIGINS: string; // 逗号分隔的允许域名
+  ALLOWED_ORIGINS: string;
 }

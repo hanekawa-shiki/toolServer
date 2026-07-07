@@ -2,20 +2,15 @@ import type { Env } from "./types";
 import { syncAll } from "./sync";
 
 export default {
-  /**
-   * HTTP 请求处理
-   */
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
 
-    // 强制 HTTPS
     if (url.protocol !== "https:") {
       return json("", { error: "HTTPS required" }, 403);
     }
 
-    // 强制校验 Origin
     const origin = request.headers.get("Origin") || "";
     if (!origin) return json("", { error: "Origin header required" }, 403);
 
@@ -27,18 +22,15 @@ export default {
       return json("", { error: "Origin not allowed" }, 403);
     }
 
-    // CORS 预检
     if (method === "OPTIONS") {
       return corsResponse(origin, null, 204);
     }
 
     try {
-      // GET / - 服务信息
       if (path === "/" || path === "") {
         return json(origin, { message: "Holiday CN API", version: "1.0.0" });
       }
 
-      // POST /api/holidays/year - 获取指定年份完整数据
       if (path === "/api/holidays/year" && method === "POST") {
         const body = await request.json<{ year?: number }>();
         if (!body.year) return json(origin, { error: "Missing 'year' field" }, 400);
@@ -55,9 +47,6 @@ export default {
     }
   },
 
-  /**
-   * Cron 定时任务：每周同步一次
-   */
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log("Weekly sync triggered");
     ctx.waitUntil(
@@ -68,9 +57,6 @@ export default {
   },
 };
 
-/**
- * 构建 CORS 响应头，只有匹配到的 origin 才设置 Allow-Origin
- */
 function buildCorsHeaders(origin: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
