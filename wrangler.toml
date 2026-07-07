@@ -9,7 +9,7 @@ id = "f58c791eeef1498796e76ce8fbb7febb"  # 首次部署前运行 `npm run kv:cre
 
 # 定时任务：每周日 UTC 00:00（北京时间 08:00）执行同步
 [triggers]
-crons = ["0 0 * * 0"]
+crons = ["0 1 * * fri"]
 
 # 环境变量
 [vars]
