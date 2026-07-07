@@ -17,3 +17,7 @@ GITHUB_RAW_BASE = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/mast
 
 # ALLOWED_ORIGINS 通过 Secret 设置，不暴露在代码中
 # 首次部署后运行: echo "https://your-app.example.com" | npx wrangler secret put ALLOWED_ORIGINS
+
+[observability.logs]
+enabled = false
+invocation_logs = true
