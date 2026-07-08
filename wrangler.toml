@@ -7,9 +7,17 @@ compatibility_date = "2025-01-01"
 binding = "HOLIDAYS"
 id = "f58c791eeef1498796e76ce8fbb7febb"  # 首次部署前运行 `npm run kv:create` 获取
 
-# 定时任务：每周日 UTC 00:00（北京时间 08:00）执行同步
+# D1 数据库绑定（用于成品油油价存储）
+[[d1_databases]]
+binding = "OIL_PRICES_DB"
+database_name = "oil-prices-db"
+database_id = "ffd832d6-8cbe-4b19-b92c-b455acb7ba62"
+
+# 定时任务：
+# 1. 每10天 UTC 01:00（北京时间 09:00）同步节假日数据（每月1日、11日、21日）
+# 2. 每3天 UTC 09:00（北京时间 17:00）抓取油价数据
 [triggers]
-crons = ["0 1 * * fri"]
+crons = ["0 1 */10 * *", "0 9 */3 * *"]
 
 # 环境变量
 [vars]
@@ -17,6 +25,9 @@ GITHUB_RAW_BASE = "https://raw.githubusercontent.com/NateScarlet/holiday-cn/mast
 
 # ALLOWED_ORIGINS 通过 Secret 设置，不暴露在代码中
 # 首次部署后运行: echo "https://your-app.example.com" | npx wrangler secret put ALLOWED_ORIGINS
+
+# ADMIN_KEY 通过 Secret 设置，用于手动触发同步
+# 首次部署后运行: echo "your-admin-key" | npx wrangler secret put ADMIN_KEY
 
 [observability.logs]
 enabled = false
