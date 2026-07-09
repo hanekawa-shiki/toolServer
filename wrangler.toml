@@ -1,4 +1,4 @@
-name = "holiday-cn-worker"
+name = "hanekawa-tool-server"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 

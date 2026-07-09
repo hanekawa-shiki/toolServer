@@ -83,9 +83,9 @@ export default {
 
       // 手动触发同步（需要管理员权限）
       if (path === "/api/oil-prices/sync" && method === "POST") {
-        let body: { admin_key?: string } = {};
+        let body: { admin_key?: string; date?: string } = {};
         try {
-          body = await request.json<{ admin_key?: string }>();
+          body = await request.json<{ admin_key?: string; date?: string }>();
         } catch {
           // ignore parse errors
         }
@@ -95,7 +95,7 @@ export default {
           return json(origin, { error: "Unauthorized" }, 401);
         }
 
-        const result = await syncOilPrices(env.OIL_PRICES_DB);
+        const result = await syncOilPrices(env.OIL_PRICES_DB, body.date);
         return json(origin, result);
       }
 

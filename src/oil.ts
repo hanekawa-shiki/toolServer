@@ -263,35 +263,19 @@ export async function queryOilDates(db: D1Database): Promise<string[]> {
 }
 
 /**
- * 定时抓取任务：抓取最新油价并存入数据库
- * 如果当天没有数据，尝试往前查找最近的有数据的日期
+ * 定时抓取任务：抓取指定日期的油价并存入数据库
+ * 未指定日期时抓取当天，无数据则跳过
  */
-export async function syncOilPrices(db: D1Database): Promise<{ success: boolean; date: string; count: number; message: string }> {
+export async function syncOilPrices(db: D1Database, targetDate?: string): Promise<{ success: boolean; date: string; count: number; message: string }> {
   try {
     // 先初始化表
     await initOilPricesTable(db);
 
-    // 尝试抓取今天的数据
-    const today = getBeijingDateStr();
-    let records = await fetchOilPrices(today);
-
-    // 如果今天没数据，尝试往前找（最多找7天）
-    if (records.length === 0) {
-      for (let i = 1; i <= 7; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const beijingTime = new Date(d.getTime() + (8 * 60 * 60 * 1000) - (d.getTimezoneOffset() * 60 * 1000));
-        const prevDate = beijingTime.toISOString().split("T")[0];
-        records = await fetchOilPrices(prevDate);
-        if (records.length > 0) {
-          console.log(`Found data for date: ${prevDate}`);
-          break;
-        }
-      }
-    }
+    const fetchDate = targetDate || getBeijingDateStr();
+    const records = await fetchOilPrices(fetchDate);
 
     if (records.length === 0) {
-      return { success: true, date: today, count: 0, message: "No oil price data available" };
+      return { success: true, date: targetDate || getBeijingDateStr(), count: 0, message: "No oil price data available" };
     }
 
     const result = await upsertOilPrices(db, records);
