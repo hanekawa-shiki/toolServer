@@ -109,26 +109,18 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`Cron triggered: ${event.cron}`);
     // 根据 cron 表达式区分任务
-    // */10 = 每10天同步节假日; */3 = 每3天抓取油价
+    // */10 = 每10天同步节假日; 其他 = 每天抓取油价
     if (event.cron.includes("*/10")) {
       ctx.waitUntil(
         syncAll(env)
           .then((r) => console.log("Holiday sync done:", JSON.stringify(r)))
           .catch((e) => console.error("Holiday sync failed:", e))
       );
-    } else if (event.cron.includes("*/3")) {
+    } else {
       ctx.waitUntil(
         syncOilPrices(env.OIL_PRICES_DB)
           .then((r) => console.log("Oil price sync done:", JSON.stringify(r)))
           .catch((e) => console.error("Oil price sync failed:", e))
-      );
-    } else {
-      console.log("Unknown cron pattern, running all tasks");
-      ctx.waitUntil(
-        Promise.allSettled([
-          syncAll(env).then((r) => console.log("Holiday sync done:", JSON.stringify(r))),
-          syncOilPrices(env.OIL_PRICES_DB).then((r) => console.log("Oil price sync done:", JSON.stringify(r))),
-        ])
       );
     }
   },
