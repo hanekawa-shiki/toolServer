@@ -1,6 +1,6 @@
 /**
  * 成品油油价数据抓取与查询模块
- * 数据来源：东方财富网 datacenter-web API
+ * 数据来源：datacenter-web API
  */
 
 export interface OilPriceRecord {
@@ -71,7 +71,7 @@ function getBeijingDateStr(): string {
 }
 
 /**
- * 从东方财富网抓取指定日期的成品油油价数据
+ * 抓取指定日期的成品油油价数据
  */
 export async function fetchOilPrices(date?: string): Promise<OilPriceRecord[]> {
   const targetDate = date || getBeijingDateStr();
@@ -253,20 +253,49 @@ export async function queryOilPrices(
 }
 
 /**
- * 获取所有可用的油价日期列表
+ * 从 KV 读取油价日期索引列表（降序）
  */
-export async function queryOilDates(db: D1Database): Promise<string[]> {
+export async function getOilDateList(kv: KVNamespace): Promise<string[]> {
+  const dates = await kv.get<string[]>("oil:dates", "json");
+  return dates || [];
+}
+
+/**
+ * 向 KV 日期索引列表追加新日期（去重，保持降序）
+ */
+export async function addOilDate(kv: KVNamespace, date: string): Promise<void> {
+  const dates = await kv.get<string[]>("oil:dates", "json") || [];
+  if (!dates.includes(date)) {
+    dates.push(date);
+    dates.sort((a, b) => b.localeCompare(a));
+    await kv.put("oil:dates", JSON.stringify(dates));
+  }
+}
+
+/**
+ * 获取所有可用的油价日期列表（从 KV 读取）
+ * 若 KV 中无数据，回退到 D1 查询并写入 KV
+ */
+export async function queryOilDates(kv: KVNamespace, db: D1Database): Promise<string[]> {
+  let dates = await getOilDateList(kv);
+  if (dates.length > 0) return dates;
+
+  // KV 为空，从 D1 回填
   const results = await db
     .prepare("SELECT DISTINCT dim_date FROM oil_prices ORDER BY dim_date DESC")
     .all<{ dim_date: string }>();
-  return (results.results || []).map((r) => r.dim_date);
+  dates = (results.results || []).map((r) => r.dim_date);
+  if (dates.length > 0) {
+    await kv.put("oil:dates", JSON.stringify(dates));
+  }
+  return dates;
 }
 
 /**
  * 定时抓取任务：抓取指定日期的油价并存入数据库
  * 未指定日期时抓取当天，无数据则跳过
  */
-export async function syncOilPrices(db: D1Database, targetDate?: string): Promise<{ success: boolean; date: string; count: number; message: string }> {
+export async function syncOilPrices(db: D1Database, kv: KVNamespace, targetDate?: string): Promise<{ success: boolean; date: string; count: number; message: string }> {
   try {
     // 先初始化表
     await initOilPricesTable(db);
@@ -279,6 +308,10 @@ export async function syncOilPrices(db: D1Database, targetDate?: string): Promis
     }
 
     const result = await upsertOilPrices(db, records);
+
+    // 将日期追加到 KV 日期索引列表
+    await addOilDate(kv, result.date);
+
     return {
       success: true,
       date: result.date,

@@ -46,7 +46,7 @@ export default {
 
       // 获取所有可用日期列表
       if (path === "/api/oil-prices/dates" && (method === "GET" || method === "POST")) {
-        const dates = await queryOilDates(env.OIL_PRICES_DB);
+        const dates = await queryOilDates(env.HOLIDAYS, env.OIL_PRICES_DB);
         return json(origin, { dates });
       }
 
@@ -95,7 +95,7 @@ export default {
           return json(origin, { error: "Unauthorized" }, 401);
         }
 
-        const result = await syncOilPrices(env.OIL_PRICES_DB, body.date);
+        const result = await syncOilPrices(env.OIL_PRICES_DB, env.HOLIDAYS, body.date);
         return json(origin, result);
       }
 
@@ -118,7 +118,7 @@ export default {
       );
     } else {
       ctx.waitUntil(
-        syncOilPrices(env.OIL_PRICES_DB)
+        syncOilPrices(env.OIL_PRICES_DB, env.HOLIDAYS)
           .then((r) => console.log("Oil price sync done:", JSON.stringify(r)))
           .catch((e) => console.error("Oil price sync failed:", e))
       );

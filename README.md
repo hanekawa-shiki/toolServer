@@ -7,13 +7,13 @@
 ```
                     ┌─ GitHub (holiday-cn)  →  KV Storage
 Cloudflare Worker ──┤
-(Cron 定时同步)     └─ 东方财富网 (datacenter-web)  →  D1 Database
+(Cron 定时同步)     └─ datacenter-web  →  D1 Database
                                                               ↓
                                                     HTTP API (前端调用)
 ```
 
 - **节假日数据**：每 10 天从 [NateScarlet/holiday-cn](https://github.com/NateScarlet/holiday-cn) 自动同步，存入 KV
-- **油价数据**：每天从东方财富网抓取最新成品油油价，存入 D1
+- **油价数据**：每天自动抓取最新成品油油价，存入 D1
 
 ## 快速开始
 
@@ -150,21 +150,22 @@ Content-Type: application/json
 ```
 src/
 ├── index.ts    # Worker 入口（路由 + Cron 调度）
-├── oil.ts      # 油价数据抓取与查询（东方财富网 → D1）
+├── oil.ts      # 油价数据抓取与查询（datacenter-web → D1）
 ├── sync.ts     # 节假日全量同步（GitHub → KV）
 └── types.ts    # 类型定义
 ```
 
 ## 存储设计
 
-### KV — 节假日数据
+### KV
 
 | Key | 说明 |
 |-----|------|
 | `holiday:years` | 年份索引 `[2007, 2008, ..., 2027]` |
 | `holiday:year:2025` | 某年完整 JSON |
+| `oil:dates` | 油价日期列表 `["2026-06-19", ...]`（降序，每次同步成功后自动维护） |
 
-### D1 — 油价数据
+### D1
 
 `oil_prices` 表，主键 `(dim_id, dim_date)`，索引 `dim_date` 和 `city_name`。
 
