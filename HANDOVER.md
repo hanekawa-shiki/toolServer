@@ -21,7 +21,7 @@
 本项目是一个部署在 Cloudflare Workers 上的后端 API 服务，提供两个主要功能：
 
 1. **中国节假日查询** — 从 GitHub 开源数据源同步节假日数据到 Cloudflare KV，提供按年份查询接口。
-2. **成品油油价数据** — 从东方财富网 API 抓取全国各城市油价数据到 Cloudflare D1 数据库，提供按日期、城市查询接口。
+2. **成品油油价数据** — 从公开 API 抓取全国各城市油价数据到 Cloudflare D1 数据库，提供按日期、城市查询接口。
 
 ### 技术架构图
 
@@ -51,7 +51,7 @@ hanekawa-tool-server/
     ├── index.ts        # Worker 入口：路由分发 + Cron 任务调度
     ├── types.ts        # 共享类型定义（HolidayYear, HolidayDay, Env）
     ├── sync.ts         # 节假日全量同步逻辑（GitHub API → KV）
-    └── oil.ts          # 油价数据抓取、存储、查询（东方财富 → D1）
+    └── oil.ts          # 油价数据抓取、存储、查询（公开 API → D1）
 ```
 
 ---
@@ -237,6 +237,9 @@ CREATE INDEX IF NOT EXISTS idx_oil_prices_city ON oil_prices(city_name);
 
 #### `POST /api/oil-prices` — 查询油价
 
+**请求头**:
+- `cf-region`（可选）：Cloudflare 请求头，值为英文省级行政区名（如 `Shanghai`），用于高亮用户所在省份的油价数据
+
 **请求体**:
 ```json
 {
@@ -247,10 +250,12 @@ CREATE INDEX IF NOT EXISTS idx_oil_prices_city ON oil_prices(city_name);
 }
 ```
 
+**高亮逻辑**：当 `cf-region` 存在时，后端通过 `REGION_CN_MAP` 将其转换为中文省份名，与每条记录的 `city_name` 比对，匹配项返回 `highlight: true`。`cf-region` 不存在时不做比对。
+
 **响应**:
 ```json
 {
-  "data": [{ "dim_id": "...", "city_name": "北京", "v92": 7.15, ... }],
+  "data": [{ "dim_id": "...", "city_name": "上海", "highlight": true, "v92": 7.15, ... }],
   "total": 31,
   "date": "2026-06-19"
 }
@@ -312,6 +317,18 @@ interface Env {
   ALLOWED_ORIGINS: string;
   ADMIN_KEY?: string;
 }
+
+interface OilPriceRecord {
+  dim_id: string;
+  dim_date: string;
+  city_name: string;
+  first_letter: string;
+  v0: number; v95: number; v92: number; v89: number;
+  zde0: number; zde92: number; zde95: number; zde89: number;
+  qe0: number; qe92: number; qe95: number; qe89: number;
+}
+
+type OilPriceRecordWithHighlight = OilPriceRecord & { highlight?: boolean };
 ```
 
 ### 8.3 `src/sync.ts` — 节假日同步
@@ -341,10 +358,10 @@ interface Env {
 | 函数 | 说明 |
 |------|------|
 | `getBeijingDateStr()` | 获取北京时间日期字符串 YYYY-MM-DD |
-| `fetchOilPrices(date?)` | 从东方财富抓取指定日期油价 |
+| `fetchOilPrices(date?)` | 从数据源抓取指定日期油价 |
 | `upsertOilPrices(db, records)` | 批量写入 D1（INSERT OR REPLACE） |
 | `initOilPricesTable(db)` | 初始化 D1 表结构 |
-| `queryOilPrices(db, options)` | 分页查询油价（支持日期、城市筛选） |
+| `queryOilPrices(db, options)` | 分页查询油价（支持日期、城市筛选、省份高亮） |
 | `getOilDateList(kv)` | 从 KV 读取日期索引 |
 | `addOilDate(kv, date)` | 向 KV 日期索引追加新日期 |
 | `queryOilDates(kv, db)` | 获取所有可用日期（KV → D1 回填） |
@@ -493,7 +510,7 @@ if (path === "/api/new-endpoint" && method === "POST") {
 | 问题 | 排查方向 |
 |------|----------|
 | API 返回 403 | 检查 Origin 头是否在 ALLOWED_ORIGINS 白名单中 |
-| 油价同步返回空数据 | 东方财富 API 可能当日无数据（非交易日），正常现象 |
+| 油价同步返回空数据 | 数据源 API 可能当日无数据（非交易日），正常现象 |
 | Cron 未触发 | 检查 wrangler.toml 中 crons 配置，确认 Worker 已部署 |
 | D1 查询返回空 | 表可能未初始化，syncOilPrices 会自动初始化；也可手动调用 sync 接口 |
 | KV 日期列表为空 | queryOilDates 会自动从 D1 回填；首次使用需先同步数据 |
@@ -508,9 +525,12 @@ npx wrangler tail                # 实时查看 Worker 日志
 
 ## 13. 版本历史摘要
 
-基于当前代码状态（commit `9bef107`），项目已实现：
+基于当前代码状态（commit `84c14fe`），项目已实现：
 - 中国节假日全量同步与查询
 - 全国成品油油价每日自动抓取与存储
 - 油价按日期/城市分页查询
+- 通过 `cf-region` 请求头自动高亮用户所在省份的油价数据
 - 管理员手动触发油价同步
 - 完整的 CORS 安全策略
+
+**类型拆分**：油价相关的接口类型（`OilPriceRecord`、`OilPriceRecordWithHighlight`）定义在 `src/types.ts` 中，`src/oil.ts` 通过 `import type` 引入，保持类型与业务逻辑分离。

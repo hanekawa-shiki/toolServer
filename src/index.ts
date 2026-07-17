@@ -32,7 +32,7 @@ export default {
         return json(origin, { message: "HANEKAWA-TOOLS API", version: "1.1.0" });
       }
 
-      // ========== 原有节假日接口 ==========
+      // POST /api/holidays/year — 查询指定年份节假日数据
       if (path === "/api/holidays/year" && method === "POST") {
         const body = await request.json<{ year?: number }>();
         if (!body.year) return json(origin, { error: "Missing 'year' field" }, 400);
@@ -42,15 +42,13 @@ export default {
         return json(origin, data);
       }
 
-      // ========== 成品油油价接口 ==========
-
-      // 获取所有可用日期列表
+      // POST /api/oil-prices/dates — 获取所有可用油价日期列表
       if (path === "/api/oil-prices/dates" && method === "POST") {
         const dates = await queryOilDates(env.HOLIDAYS, env.OIL_PRICES_DB);
         return json(origin, { dates });
       }
 
-      // 查询油价数据
+      // POST /api/oil-prices — 分页查询油价，支持日期/城市筛选，可选 cf-region 高亮
       if (path === "/api/oil-prices" && method === "POST") {
         let body: { date?: string; city?: string; page?: number; pageSize?: number } = {};
         try {
@@ -60,27 +58,26 @@ export default {
             page?: number;
             pageSize?: number;
           }>();
-        } catch {
-          // body 为空或非法 JSON 时使用默认值
-        }
+        } catch {}
+
+        const region = request.headers.get("cf-region") || undefined;
 
         const result = await queryOilPrices(env.OIL_PRICES_DB, {
           date: body.date,
           city: body.city,
           page: body.page,
           pageSize: body.pageSize,
+          region,
         });
         return json(origin, result);
       }
 
-      // 手动触发同步（需要管理员权限）
+      // POST /api/oil-prices/sync — 手动触发油价同步（需管理员密钥）
       if (path === "/api/oil-prices/sync" && method === "POST") {
         let body: { admin_key?: string; date?: string } = {};
         try {
           body = await request.json<{ admin_key?: string; date?: string }>();
-        } catch {
-          // ignore parse errors
-        }
+        } catch {}
         const adminKey = env.ADMIN_KEY;
 
         if (!adminKey || body.admin_key !== adminKey) {
@@ -100,8 +97,6 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`Cron triggered: ${event.cron}`);
-    // 根据 cron 表达式区分任务
-    // */10 = 每10天同步节假日; 其他 = 每天抓取油价
     if (event.cron.includes("*/10")) {
       ctx.waitUntil(
         syncAll(env)

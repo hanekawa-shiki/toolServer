@@ -1,58 +1,80 @@
-/**
- * 成品油油价数据抓取与查询模块
- * 数据来源：datacenter-web API
- */
+import type { OilPriceRecord, OilPriceRecordWithHighlight } from "./types";
 
-export interface OilPriceRecord {
-  dim_id: string;
-  dim_date: string;
-  city_name: string;
-  first_letter: string;
-  /** 0#柴油价格 */
-  v0: number;
-  /** 95#汽油价格 */
-  v95: number;
-  /** 92#汽油价格 */
-  v92: number;
-  /** 89#汽油价格 */
-  v89: number;
-  /** 0#柴油涨跌 */
-  zde0: number;
-  /** 92#汽油涨跌 */
-  zde92: number;
-  /** 95#汽油涨跌 */
-  zde95: number;
-  /** 89#汽油涨跌 */
-  zde89: number;
-  /** 0#柴油前一期价格 */
-  qe0: number;
-  /** 92#汽油前一期价格 */
-  qe92: number;
-  /** 95#汽油前一期价格 */
-  qe95: number;
-  /** 89#汽油前一期价格 */
-  qe89: number;
-}
+const REGION_CN_MAP: Record<string, string> = {
+  // 直辖市
+  Beijing: "北京",
+  Shanghai: "上海",
+  Tianjin: "天津",
+  Chongqing: "重庆",
+  // 省份
+  Hebei: "河北",
+  Shanxi: "山西",
+  Liaoning: "辽宁",
+  Jilin: "吉林",
+  Heilongjiang: "黑龙江",
+  Jiangsu: "江苏",
+  Zhejiang: "浙江",
+  Anhui: "安徽",
+  Fujian: "福建",
+  Jiangxi: "江西",
+  Shandong: "山东",
+  Henan: "河南",
+  Hubei: "湖北",
+  Hunan: "湖南",
+  Guangdong: "广东",
+  Hainan: "海南",
+  Sichuan: "四川",
+  Guizhou: "贵州",
+  Yunnan: "云南",
+  Shaanxi: "陕西",
+  Gansu: "甘肃",
+  Qinghai: "青海",
+  Taiwan: "台湾",
+  // 自治区
+  Guangxi: "广西",
+  Neimenggu: "内蒙古",
+  Xizang: "西藏",
+  Ningxia: "宁夏",
+  Xinjiang: "新疆",
+};
 
+/** 油价数据源 API 返回的原始记录（字段名为大写） */
 interface EastMoneyRecord {
+  /** 城市维度 ID */
   DIM_ID: string;
+  /** 数据日期（格式：2026-06-19 00:00:00） */
   DIM_DATE: string;
+  /** 城市名称 */
   CITYNAME: string;
+  /** 城市首字母 */
   FIRST_LETTER: string;
+  /** 0# 柴油价格 */
   V0: number;
+  /** 95# 汽油价格 */
   V95: number;
+  /** 92# 汽油价格 */
   V92: number;
+  /** 89# 汽油价格 */
   V89: number;
+  /** 0# 柴油涨跌 */
   ZDE0: number;
+  /** 92# 汽油涨跌 */
   ZDE92: number;
+  /** 95# 汽油涨跌 */
   ZDE95: number;
+  /** 89# 汽油涨跌 */
   ZDE89: number;
+  /** 0# 柴油前一期价格 */
   QE0: number;
+  /** 92# 汽油前一期价格 */
   QE92: number;
+  /** 95# 汽油前一期价格 */
   QE95: number;
+  /** 89# 汽油前一期价格 */
   QE89: number;
 }
 
+/** 油价数据源 API 响应结构 */
 interface EastMoneyResponse {
   success: boolean;
   result: {
@@ -61,18 +83,13 @@ interface EastMoneyResponse {
   } | null;
 }
 
-/**
- * 获取北京时间的日期字符串 YYYY-MM-DD
- */
 function getBeijingDateStr(): string {
   const now = new Date();
   const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) - (now.getTimezoneOffset() * 60 * 1000));
   return beijingTime.toISOString().split("T")[0];
 }
 
-/**
- * 抓取指定日期的成品油油价数据
- */
+/** 抓取指定日期的成品油油价数据，不传则取当天 */
 export async function fetchOilPrices(date?: string): Promise<OilPriceRecord[]> {
   const targetDate = date || getBeijingDateStr();
   const url = `https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPTA_WEB_YJ_JH&columns=ALL&filter=(DIM_DATE%3D%27${encodeURIComponent(targetDate)}%27)&sortColumns=FIRST_LETTER&sortTypes=1&pageNumber=1&pageSize=100&source=WEB&_=${Date.now()}`;
@@ -87,7 +104,7 @@ export async function fetchOilPrices(date?: string): Promise<OilPriceRecord[]> {
   });
 
   if (!resp.ok) {
-    throw new Error(`Eastmoney API error: ${resp.status} ${resp.statusText}`);
+    throw new Error(`Oil price API error: ${resp.status} ${resp.statusText}`);
   }
 
   const json: EastMoneyResponse = await resp.json() as EastMoneyResponse;
@@ -117,10 +134,7 @@ export async function fetchOilPrices(date?: string): Promise<OilPriceRecord[]> {
   }));
 }
 
-/**
- * 将油价数据写入 D1 数据库
- * 使用 INSERT OR REPLACE 避免重复
- */
+/** 批量写入油价数据到 D1（INSERT OR REPLACE），每批 50 条 */
 export async function upsertOilPrices(
   db: D1Database,
   records: OilPriceRecord[],
@@ -162,9 +176,7 @@ export async function upsertOilPrices(
   return { inserted, date };
 }
 
-/**
- * 初始化 D1 数据库表结构
- */
+/** 初始化 D1 oil_prices 表结构 */
 export async function initOilPricesTable(db: D1Database): Promise<void> {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS oil_prices (
@@ -193,20 +205,20 @@ export async function initOilPricesTable(db: D1Database): Promise<void> {
   console.log("oil_prices table initialized");
 }
 
-/**
- * 查询指定日期的所有城市油价
- * 如果未指定日期，返回最近一次的数据
- */
+function regionToCn(region: string): string | null {
+  return REGION_CN_MAP[region] || null;
+}
+
+/** 分页查询油价，支持日期/城市筛选，可选根据 cf-region 高亮用户所在省份 */
 export async function queryOilPrices(
   db: D1Database,
-  options: { date?: string; city?: string; page?: number; pageSize?: number } = {},
-): Promise<{ data: OilPriceRecord[]; total: number; date: string }> {
-  const { date, city, page = 1, pageSize = 50 } = options;
+  options: { date?: string; city?: string; page?: number; pageSize?: number; region?: string } = {},
+): Promise<{ data: OilPriceRecordWithHighlight[]; total: number; date: string }> {
+  const { date, city, page = 1, pageSize = 50, region } = options;
 
   let targetDate = date;
 
   if (!targetDate) {
-    // 获取最新日期
     const latest = await db
       .prepare("SELECT DISTINCT dim_date FROM oil_prices ORDER BY dim_date DESC LIMIT 1")
       .first<{ dim_date: string }>();
@@ -224,14 +236,12 @@ export async function queryOilPrices(
     params.push(`%${city}%`);
   }
 
-  // 获取总数
   const countRow = await db
     .prepare(`SELECT COUNT(*) as total FROM oil_prices ${whereClause}`)
     .bind(...params)
     .first<{ total: number }>();
   const total = countRow?.total || 0;
 
-  // 分页查询
   const offset = (page - 1) * pageSize;
   const results = await db
     .prepare(
@@ -245,24 +255,26 @@ export async function queryOilPrices(
     .bind(...params, pageSize, offset)
     .all<OilPriceRecord>();
 
+  const regionCn = region ? regionToCn(region) : null;
+  const data: OilPriceRecordWithHighlight[] = (results.results || []).map((r) => ({
+    ...r,
+    ...(regionCn ? { highlight: r.city_name.includes(regionCn) } : {}),
+  }));
+
   return {
-    data: results.results || [],
+    data,
     total,
     date: targetDate,
   };
 }
 
-/**
- * 从 KV 读取油价日期索引列表（降序）
- */
+/** 从 KV 读取油价日期索引列表（降序） */
 export async function getOilDateList(kv: KVNamespace): Promise<string[]> {
   const dates = await kv.get<string[]>("oil:dates", "json");
   return dates || [];
 }
 
-/**
- * 向 KV 日期索引列表追加新日期（去重，保持降序）
- */
+/** 向 KV 日期索引追加新日期（去重，保持降序） */
 export async function addOilDate(kv: KVNamespace, date: string): Promise<void> {
   const dates = await kv.get<string[]>("oil:dates", "json") || [];
   if (!dates.includes(date)) {
@@ -272,15 +284,11 @@ export async function addOilDate(kv: KVNamespace, date: string): Promise<void> {
   }
 }
 
-/**
- * 获取所有可用的油价日期列表（从 KV 读取）
- * 若 KV 中无数据，回退到 D1 查询并写入 KV
- */
+/** 获取所有可用油价日期，优先从 KV 读取，KV 为空则回退到 D1 查询并回填 */
 export async function queryOilDates(kv: KVNamespace, db: D1Database): Promise<string[]> {
   let dates = await getOilDateList(kv);
   if (dates.length > 0) return dates;
 
-  // KV 为空，从 D1 回填
   const results = await db
     .prepare("SELECT DISTINCT dim_date FROM oil_prices ORDER BY dim_date DESC")
     .all<{ dim_date: string }>();
@@ -291,13 +299,9 @@ export async function queryOilDates(kv: KVNamespace, db: D1Database): Promise<st
   return dates;
 }
 
-/**
- * 定时抓取任务：抓取指定日期的油价并存入数据库
- * 未指定日期时抓取当天，无数据则跳过
- */
+/** 完整同步流程：初始化表 → 抓取 → 写入 D1 → 更新 KV 日期索引 */
 export async function syncOilPrices(db: D1Database, kv: KVNamespace, targetDate?: string): Promise<{ success: boolean; date: string; count: number; message: string }> {
   try {
-    // 先初始化表
     await initOilPricesTable(db);
 
     const fetchDate = targetDate || getBeijingDateStr();
@@ -309,7 +313,6 @@ export async function syncOilPrices(db: D1Database, kv: KVNamespace, targetDate?
 
     const result = await upsertOilPrices(db, records);
 
-    // 将日期追加到 KV 日期索引列表
     await addOilDate(kv, result.date);
 
     return {

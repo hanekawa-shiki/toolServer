@@ -89,6 +89,7 @@ POST /api/oil-prices/dates
 ```
 POST /api/oil-prices
 Content-Type: application/json
+cf-region: Shanghai       // 可选，Cloudflare 请求头，表示请求者所在省级行政区
 
 {
   "date": "2026-06-19",   // 可选，不传则返回最新日期
@@ -98,6 +99,8 @@ Content-Type: application/json
 }
 ```
 
+当请求头包含 `cf-region` 时，后端会将其转换为中文省份名称并与每条记录的 `city_name` 比对，匹配项返回 `highlight: true`，前端可用于高亮用户所在省份的油价数据。若未携带该 header 则不做高亮处理。
+
 返回：
 
 ```json
@@ -106,8 +109,9 @@ Content-Type: application/json
     {
       "dim_id": "...",
       "dim_date": "2026-06-19",
-      "city_name": "北京",
-      "first_letter": "B",
+      "city_name": "上海",
+      "first_letter": "S",
+      "highlight": true,  // 仅当 cf-region 匹配时出现
       "v0": 6.82,       // 0# 柴油
       "v92": 7.15,      // 92# 汽油
       "v95": 7.62,      // 95# 汽油
