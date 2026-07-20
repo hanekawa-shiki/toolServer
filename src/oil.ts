@@ -178,30 +178,11 @@ export async function upsertOilPrices(
 
 /** 初始化 D1 oil_prices 表结构 */
 export async function initOilPricesTable(db: D1Database): Promise<void> {
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS oil_prices (
-      dim_id TEXT NOT NULL,
-      dim_date TEXT NOT NULL,
-      city_name TEXT NOT NULL,
-      first_letter TEXT,
-      v0 REAL,
-      v95 REAL,
-      v92 REAL,
-      v89 REAL,
-      zde0 REAL,
-      zde92 REAL,
-      zde95 REAL,
-      zde89 REAL,
-      qe0 REAL,
-      qe92 REAL,
-      qe95 REAL,
-      qe89 REAL,
-      created_at TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY (dim_id, dim_date)
-    )
-  `);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_oil_prices_date ON oil_prices(dim_date)`);
-  await db.exec(`CREATE INDEX IF NOT EXISTS idx_oil_prices_city ON oil_prices(city_name)`);
+  await db.prepare(
+    "CREATE TABLE IF NOT EXISTS oil_prices (dim_id TEXT NOT NULL, dim_date TEXT NOT NULL, city_name TEXT NOT NULL, first_letter TEXT, v0 REAL, v95 REAL, v92 REAL, v89 REAL, zde0 REAL, zde92 REAL, zde95 REAL, zde89 REAL, qe0 REAL, qe92 REAL, qe95 REAL, qe89 REAL, created_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (dim_id, dim_date))"
+  ).run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_oil_prices_date ON oil_prices(dim_date)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_oil_prices_city ON oil_prices(city_name)").run();
   console.log("oil_prices table initialized");
 }
 
